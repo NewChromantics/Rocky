@@ -58,6 +58,10 @@ async function CreateRockTriangleBuffer(RenderContext)
 	return TriBuffer;
 }
 
+async function LoadRockTextureNormals(RenderContext)
+{
+	return Pop.FileSystem.LoadFileAsImageAsync('Rock_1/Rock_1_Normal.jpg');
+}
 
 let CubeShader = null;
 function RegisterAssets()
@@ -66,12 +70,12 @@ function RegisterAssets()
 		return;
 	AssetManager.RegisterAssetAsyncFetchFunction('Cube01', CreateUnitCubeTriangleBuffer );
 	AssetManager.RegisterAssetAsyncFetchFunction('Rock', CreateRockTriangleBuffer );
+	AssetManager.RegisterAssetAsyncFetchFunction('RockTextureNormals', LoadRockTextureNormals );
 
 
-	const Attribs = ['LocalPosition','LocalUv'];
 	const VertFilename = 'Geo.vert.glsl';
 	const FragFilename = 'Colour.frag.glsl';
-	CubeShader = AssetManager.RegisterShaderAssetFilename(FragFilename,VertFilename,null,Attribs);
+	CubeShader = AssetManager.RegisterShaderAssetFilename(FragFilename,VertFilename);
 }
 
 
@@ -153,6 +157,7 @@ function GetSceneRenderCommands(RenderContext,Camera,Viewport=[0,0,1,1])
 	Uniforms.CameraProjectionTransform = Camera.GetProjectionMatrix(Viewport);
 	Uniforms.DepthTexture = Camera.DepthImage || DefaultDepthTexture;
 	Uniforms.NormalDepthToViewDepthTransform = Uniforms.DepthTexture.NormalDepthToViewDepthTransform || [];
+	Uniforms.RockTextureNormals = AssetManager.GetAsset('RockTextureNormals',RenderContext);
 	
 	const State = {};
 	State.BlendMode = 'Alpha';

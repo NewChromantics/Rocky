@@ -21,6 +21,12 @@ const float FresnelFactor = 3.0;
 
 const float ValueToMetres = 0.0010000000474974513;
 
+
+uniform vec3 CameraWorldPosition;
+uniform vec3 CameraWorldFoward;
+uniform sampler2D RockTextureNormals;
+
+
 float GetViewDepth()
 {
 	//	view uv (-1...1) to 0...1
@@ -76,8 +82,6 @@ vec3 GetSceneWorldPosition()
 }
 
 
-uniform vec3 CameraWorldPosition;
-uniform vec3 CameraWorldFoward;
 
 float Fresnel(vec3 eyeVector, vec3 worldNormal)
 {
@@ -87,6 +91,18 @@ float Fresnel(vec3 eyeVector, vec3 worldNormal)
 void main()
 {
 	gl_FragColor.w = 1.0;
+
+	vec3 Normal = FragWorldNormal;
+
+	//	gr: normals in the texture are in tangent space
+	vec2 NormalMapUv = vec2( FragLocalUv.x, 1.0-FragLocalUv.y );
+	Normal = texture2D( RockTextureNormals, NormalMapUv ).xyz;
+	//Normal = mix( vec3(-1), vec3(1), Normal );
+	Normal = Normal * 2.0 - 1.0;
+	Normal = normalize(Normal);
+	//Normal.z = -Normal.z;//	world transform
+	Normal = cross( FragWorldNormal, Normal );
+	//Normal = FragWorldNormal;
 	
 	#define HAS_DEPTH	false
 	if ( !HAS_DEPTH )
@@ -94,8 +110,9 @@ void main()
 		gl_FragColor.xyz = FragColour;
 		
 		//	show normal
-		gl_FragColor.xyz = mix( vec3(0.5,0.5,0.5), vec3(1,1,1), FragWorldNormal );
-		gl_FragColor.xyz = FragWorldNormal;
+		gl_FragColor.xyz = mix( vec3(0.5,0.5,0.5), vec3(1,1,1), Normal );
+		gl_FragColor.xyz = Normal;
+		return;
 		/*
 		gl_FragColor.xyz = FragWorldNormal;
 		if ( FragWorldNormal.y < 0.0 )//down
@@ -111,8 +128,16 @@ void main()
 		*/
 
 		//gl_FragColor.xyz = vec3(0.0);
-		//	FragCameraPosition pos in camera space
-		vec3 Normal = FragWorldNormal;
+		/*
+		// get screen coordinates
+		vec2 uv = gl_FragCoord.xy / vec2(1024,1024);
+		// calculate refraction and add to the screen coordinates
+		float ior = 2.0;
+		vec3 refracted = refract(CameraWorldFoward, Normal, 1.0/ior);
+		uv += refracted.xy;
+		gl_FragColor.xy = uv;
+		gl_FragColor.z = 0.5;
+		*/
 		float Fres = Fresnel( CameraWorldFoward, Normal );
 		gl_FragColor.xyz = mix(gl_FragColor.xyz, vec3(1.0), Fres);
 		
