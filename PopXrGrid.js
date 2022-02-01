@@ -14,6 +14,7 @@ let AppCamera = new Camera_t();
 //	try and emulate default XR pose a bit
 AppCamera.Position = [0,0,4];
 AppCamera.LookAt = [0,0,0];
+AppCamera.FovVertical = 80;
 let LastXrRenderTimeMs = null;
 let DefaultDepthTexture = CreateRandomImage(16,16);
 let CubePosition = [-1,0,0];//AppCamera.LookAt.slice();
@@ -60,7 +61,9 @@ async function CreateRockTriangleBuffer(RenderContext)
 
 async function LoadRockTextureNormals(RenderContext)
 {
-	return Pop.FileSystem.LoadFileAsImageAsync('Rock_1/Rock_1_Normal.jpg');
+	const Image = await Pop.FileSystem.LoadFileAsImageAsync('Rock_1/Rock_1_Normal.jpg');
+	Image.SetLinearFilter(true);
+	return Image;
 }
 
 let CubeShader = null;
@@ -233,7 +236,7 @@ function BindMouseCameraControls(Camera,RenderView)
 		if ( Button == 'Left' )
 			Camera.OnCameraOrbit( x, y, 0, FirstDown!=false );
 		if ( Button == 'Right' )
-			Camera.OnCameraPan( x, y, 0, FirstDown!=false );
+			Camera.OnCameraPanLocal( x, y, 0, FirstDown!=false );
 	}
 	
 	RenderView.OnMouseMove = function(x,y,Button)
@@ -243,7 +246,9 @@ function BindMouseCameraControls(Camera,RenderView)
 	
 	RenderView.OnMouseScroll = function(x,y,Button,Delta)
 	{
-		Camera.OnCameraZoom( -Delta[1] * 0.1 );
+		Camera.OnCameraPanLocal( x, y, 0, true );
+		Camera.OnCameraPanLocal( x, y, -Delta[1] * 10.0, false );
+		//Camera.OnCameraZoom( -Delta[1] * 0.1 );
 	}
 }
 

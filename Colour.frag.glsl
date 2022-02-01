@@ -1,3 +1,5 @@
+#extension GL_OES_standard_derivatives : enable
+
 precision highp float;
 varying vec3 FragColour;
 
@@ -15,6 +17,7 @@ varying vec3 FragWorldPosition;
 varying vec2 FragLocalUv;
 varying vec2 FragViewUv;
 varying vec3 ClipPosition;
+varying vec3 FragLocalPosition;
 
 varying vec3 FragCameraPosition;
 const float FresnelFactor = 3.0;
@@ -88,21 +91,65 @@ float Fresnel(vec3 eyeVector, vec3 worldNormal)
 	return pow( 1.0 + dot( eyeVector, worldNormal), FresnelFactor );
 }
 
+
+//	https://github.com/glslify/glsl-perturb-normal
+
+mat3 cotangent(vec3 N, vec3 p, vec2 uv) {
+  // get edge vectors of the pixel triangle
+  vec3 dp1 = dFdx(p);
+  vec3 dp2 = dFdy(p);
+  vec2 duv1 = dFdx(uv);
+  vec2 duv2 = dFdy(uv);
+
+  // solve the linear system
+  vec3 dp2perp = cross(dp2, N);
+  vec3 dp1perp = cross(N, dp1);
+  vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;
+  vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;
+
+  // construct a scale-invariant frame 
+  float invmax = 1.0 / sqrt(max(dot(T,T), dot(B,B)));
+  return mat3(normalize(T * invmax), normalize(B * invmax), N);
+}
+
+vec3 perturb(vec3 map, vec3 N, vec3 V, vec2 texcoord) {
+  mat3 TBN = cotangent(N, -V, texcoord);
+  return normalize(TBN * map);
+}
+
+
+vec3 GetWorldNormal()
+{
+	//return FragWorldNormal;
+	//	gr: normals in the texture are in tangent space
+	vec2 NormalMapUv = vec2( FragLocalUv.x, 1.0-FragLocalUv.y );
+	vec3 NormalMapSample = texture2D( RockTextureNormals, NormalMapUv ).xyz;
+	
+	//Normal = mix( vec3(-1), vec3(1), Normal );
+	NormalMapSample = NormalMapSample * 2.0 - 1.0;
+	NormalMapSample = normalize(NormalMapSample);
+	//Normal.z = -Normal.z;//	world transform
+	//Normal = cross( FragWorldNormal, Normal );
+	//Normal = FragWorldNormal;
+	
+	//	amplify
+	NormalMapSample.xy *= 0.5;
+
+	vec3 N = FragLocalNormal;
+	//vec3 V = CameraWorldFoward;
+	//vec3 V = FragCameraPosition;//	why is this local pos in VIEW space??
+	vec3 V = FragLocalPosition;
+	vec3 Normal = perturb( NormalMapSample, N, V, FragLocalUv );
+	return Normal;
+}
+
+
 void main()
 {
 	gl_FragColor.w = 1.0;
 
-	vec3 Normal = FragWorldNormal;
+	vec3 Normal = GetWorldNormal();
 
-	//	gr: normals in the texture are in tangent space
-	vec2 NormalMapUv = vec2( FragLocalUv.x, 1.0-FragLocalUv.y );
-	Normal = texture2D( RockTextureNormals, NormalMapUv ).xyz;
-	//Normal = mix( vec3(-1), vec3(1), Normal );
-	Normal = Normal * 2.0 - 1.0;
-	Normal = normalize(Normal);
-	//Normal.z = -Normal.z;//	world transform
-	Normal = cross( FragWorldNormal, Normal );
-	//Normal = FragWorldNormal;
 	
 	#define HAS_DEPTH	false
 	if ( !HAS_DEPTH )
@@ -112,7 +159,7 @@ void main()
 		//	show normal
 		gl_FragColor.xyz = mix( vec3(0.5,0.5,0.5), vec3(1,1,1), Normal );
 		gl_FragColor.xyz = Normal;
-		return;
+		//return;
 		/*
 		gl_FragColor.xyz = FragWorldNormal;
 		if ( FragWorldNormal.y < 0.0 )//down
@@ -127,8 +174,8 @@ void main()
 		return;
 		*/
 
-		//gl_FragColor.xyz = vec3(0.0);
-		/*
+		gl_FragColor.xyz = vec3(0.0);
+		
 		// get screen coordinates
 		vec2 uv = gl_FragCoord.xy / vec2(1024,1024);
 		// calculate refraction and add to the screen coordinates
@@ -137,7 +184,7 @@ void main()
 		uv += refracted.xy;
 		gl_FragColor.xy = uv;
 		gl_FragColor.z = 0.5;
-		*/
+		
 		float Fres = Fresnel( CameraWorldFoward, Normal );
 		gl_FragColor.xyz = mix(gl_FragColor.xyz, vec3(1.0), Fres);
 		
